@@ -78,6 +78,10 @@ describe("categorizing with Paytm details", () => {
   it("applies keyword rules to your Paytm note", () => {
     expect(cat("UPIOUT/600000000040/9822222222@ptyes/NA/0000", { kind: "PAID", payee: "Ravi", note: "Rapido", tags: [] }).categoryId).toBe("transport");
   });
+  it("uses the payee for payments carried by Paytm (QR codes, Paytm handles)", () => {
+    expect(cat("UPIOUT/616724889233/paytmqr6vvbcj@ptys/Sent /5814", { kind: "PAID", payee: "Ekta Gurung", tags: [] }).merchant).toBe("Ekta Gurung");
+    expect(cat("UPIOUT/629533562537/paytm.s33dr52@pty/Rapido/7692", { kind: "PAID", payee: "ARVIND", tags: [] }).merchant).toBe("Arvind");
+  });
   it("keeps the bank's merchant name for known merchants", () => {
     expect(cat("UPIOUT/600000000041/swiggy.payu@hdfcbank/Food/5812", { kind: "PAID", payee: "Bundl Technologies", tags: [] }).merchant).toBe("Swiggy");
   });
