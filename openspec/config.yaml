@@ -1,0 +1,46 @@
+schema: spec-driven
+
+context: |
+  Fintrack is a private, single-user, self-hosted personal finance dashboard for Indian bank
+  statements (PDF, CSV, XLSX). Financial correctness outranks features and convenience.
+
+  Non-negotiable invariants — every proposal and design must state how it preserves them:
+  - Money is integer paise (BigInt in DB). Never floats, never rupee decimals in storage or math.
+  - Every PDF row is reconciled against the bank's printed running balance; direction is derived
+    from the balance delta. Uncertain data is flagged for review, never guessed.
+  - Transfers between the user's own accounts are never counted as income or spending.
+  - ImportedTransaction rows and Transaction.description are immutable raw records.
+  - USER, TRANSFER_MATCH and REFUND_MATCH categorization decisions are never overwritten by
+    automatic re-categorization.
+  - Commits are idempotent and overlap-safe via Transaction @@unique([accountId, dedupeKey]).
+  - Statement passwords are used once in memory and never stored; only last-4 card digits kept.
+  - State-changing operations (imports, deletions, recategorizations, rules, settings) write AuditLog.
+
+  Layering: pure financial logic in src/lib (framework-free, unit-tested); DB-aware services in
+  src/server; UI in src/app and src/components. Tests: Vitest (unit/integration), Playwright (e2e).
+  Real bank statements are never committed — use synthetic fixtures (tests/fixtures).
+
+rules:
+  proposal:
+    - State what is explicitly out of scope
+    - List which capability specs under openspec/specs are added, modified or removed
+    - Call out any Prisma schema migration and whether it is reversible
+  specs:
+    - Write requirements with SHALL/MUST and give every requirement at least one Scenario
+    - Express amounts in paise in scenarios when exact values matter
+    - Include failure/edge scenarios (malformed rows, balance mismatch, duplicates, overlap) where relevant
+  design:
+    - Explain how each non-negotiable invariant affected by the change is preserved
+    - Put new pure logic in src/lib and keep Prisma/Next.js out of it
+  tasks:
+    - Pair every behavior change with a test task (unit for src/lib, integration for src/server)
+    - End with a verification task running npm run typecheck, npm run lint and npm test
+
+operations:
+  apply:
+    guidance:
+      - Implement tasks in order and tick each one off in tasks.md as it is completed
+      - Do not change behavior that is not described in the change's specs; propose an update instead
+  archive:
+    guidance:
+      - Confirm typecheck, lint and tests pass before archiving

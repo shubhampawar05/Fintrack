@@ -1,0 +1,24 @@
+# Local PostgreSQL for Fintrack. Data lives in the named volume `fintrack-pgdata`.
+# Port 5433 on the host avoids clashing with any Postgres already on 5432.
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: fintrack-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fintrack
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fintrack-local}
+      POSTGRES_DB: fintrack
+    ports:
+      - "127.0.0.1:5433:5432" # bound to localhost only
+    volumes:
+      - fintrack-pgdata:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fintrack -d fintrack"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  fintrack-pgdata:

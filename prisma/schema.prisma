@@ -1,0 +1,490 @@
+// Fintrack — personal finance intelligence.
+// Money is stored as BigInt paise. Calendar dates use @db.Date (no time zone).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  SAVINGS
+  CURRENT
+  SALARY
+  CREDIT_CARD
+  WALLET
+  OTHER
+}
+
+enum Direction {
+  DEBIT
+  CREDIT
+}
+
+/// How a category participates in consolidated reports.
+enum CategoryKind {
+  INCOME
+  EXPENSE
+  TRANSFER // between own accounts — never income or expense
+  CREDIT_CARD_PAYMENT // excluded when card purchases are imported
+  INVESTMENT // contributions (debits) and withdrawals (credits) — asset movements
+  CASH // ATM withdrawals / cash deposits — spending unknown
+  REFUND // nets against the original expense
+  SETTLEMENT // personal lending/borrowing with friends — not income or expense
+  UNCLASSIFIED
+}
+
+enum SpendGroup {
+  ESSENTIAL
+  DISCRETIONARY
+  FAMILY
+}
+
+enum CategorizationMethod {
+  RULE
+  USER_RULE
+  MCC
+  OWN_ACCOUNT
+  TRANSFER_MATCH
+  REFUND_MATCH
+  AI
+  USER
+  DEFAULT
+}
+
+enum ImportStatus {
+  PREVIEW
+  COMMITTED
+  FAILED
+  DISCARDED
+}
+
+enum RowStatus {
+  PENDING
+  IMPORTED
+  DUPLICATE
+  REJECTED
+  EXCLUDED
+}
+
+enum PaymentAppKind {
+  PAID
+  RECEIVED
+  SELF
+}
+
+enum MatchStatus {
+  SUGGESTED
+  CONFIRMED
+  REJECTED
+}
+
+enum RuleMatchType {
+  CONTAINS
+  STARTS_WITH
+  EQUALS
+  REGEX
+}
+
+enum RuleField {
+  DESCRIPTION
+  MERCHANT
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum RecurringKind {
+  SUBSCRIPTION
+  RENT
+  SALARY
+  EMI
+  INSURANCE
+  FAMILY
+  INVESTMENT
+  BILL
+  OTHER
+}
+
+enum CcPaymentTreatment {
+  AUTO // excluded if any credit-card account is tracked, otherwise counted separately as unitemized card spend
+  EXPENSE
+  EXCLUDE
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String
+  createdAt  DateTime @default(now())
+
+  settings      UserSettings?
+  accounts      BankAccount[]
+  imports       StatementImport[]
+  transactions  Transaction[]
+  categories    Category[]
+  rules         CategorizationRule[]
+  transfers     InternalTransfer[]
+  budgets       Budget[]
+  goals         FinancialGoal[]
+  recurring     RecurringTransaction[]
+  auditLogs     AuditLog[]
+  paymentAppImports PaymentAppImport[]
+  paymentAppEntries PaymentAppEntry[]
+}
+
+model UserSettings {
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Names, phone numbers and UPI IDs that identify the user's own accounts.
+  ownIdentifiers       String[]           @default([])
+  transferWindowDays   Int                @default(3)
+  ccPaymentTreatment   CcPaymentTreatment @default(AUTO)
+  /// Explicit opt-in before any transaction text is sent to an external AI provider.
+  aiCategorization     Boolean            @default(false)
+  updatedAt            DateTime           @updatedAt
+}
+
+model BankAccount {
+  id                  String        @id @default(cuid())
+  userId              String
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName         String
+  bankName            String
+  accountType         AccountType   @default(SAVINGS)
+  currency            String        @default("INR")
+  /// Only the last 4 digits are stored.
+  accountLast4        String?
+  ifsc                String?
+  /// Verified opening balance at the start of `openingBalanceDate`, if known.
+  openingBalancePaise BigInt?
+  openingBalanceDate  DateTime?     @db.Date
+  /// Saved CSV/XLSX column mapping for this bank's export format.
+  columnMapping       Json?
+  color               String?
+  archived            Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  imports      StatementImport[]
+  transactions Transaction[]
+
+  @@unique([userId, displayName])
+  @@index([userId])
+}
+
+model StatementImport {
+  id                  String       @id @default(cuid())
+  userId              String
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId           String
+  account             BankAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  fileName            String
+  /// SHA-256 of the uploaded bytes; the file itself is never stored.
+  fileHash            String
+  fileType            String
+  fileSize            Int
+  parserId            String
+  parserVersion       String
+  status              ImportStatus @default(PREVIEW)
+  periodStart         DateTime?    @db.Date
+  periodEnd           DateTime?    @db.Date
+  statementDate       DateTime?    @db.Date
+  openingBalancePaise BigInt?
+  closingBalancePaise BigInt?
+  balanceCheck        String       @default("NOT_AVAILABLE")
+  rowsTotal           Int          @default(0)
+  rowsImported        Int          @default(0)
+  rowsDuplicate       Int          @default(0)
+  rowsRejected        Int          @default(0)
+  rowsExcluded        Int          @default(0)
+  warnings            Json         @default("[]")
+  errors              Json         @default("[]")
+  meta                Json         @default("{}")
+  /// CSV/XLSX grid kept so the user can remap columns without re-uploading.
+  rawTable            Json?
+  columnMapping       Json?
+  createdAt           DateTime     @default(now())
+  committedAt         DateTime?
+
+  rows         ImportedTransaction[]
+  transactions Transaction[]
+
+  @@index([userId, createdAt])
+  @@index([accountId, fileHash])
+}
+
+/// Every row exactly as extracted from the statement — never modified after commit.
+model ImportedTransaction {
+  id            String          @id @default(cuid())
+  importId      String
+  import        StatementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rowIndex      Int
+  page          Int?
+  raw           Json
+  txnDate       DateTime?       @db.Date
+  valueDate     DateTime?       @db.Date
+  description   String
+  reference     String?
+  amountPaise   BigInt?
+  direction     Direction?
+  balancePaise  BigInt?
+  errors        String[]        @default([])
+  warnings      String[]        @default([])
+  status        RowStatus       @default(PENDING)
+  /// Set when the user corrected the row in the preview.
+  edited        Boolean         @default(false)
+  dedupeKey     String?
+  transactionId String?
+  duplicateOfId String?
+
+  @@unique([importId, rowIndex])
+  @@index([importId, status])
+}
+
+model Transaction {
+  id                   String               @id @default(cuid())
+  userId               String
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId            String
+  account              BankAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  importId             String?
+  import               StatementImport?     @relation(fields: [importId], references: [id], onDelete: SetNull)
+  txnDate              DateTime             @db.Date
+  valueDate            DateTime?            @db.Date
+  postingDate          DateTime?            @db.Date
+  /// Original bank narration — immutable.
+  description          String
+  reference            String?
+  /// UPI RRN / UTR extracted from the narration; used for exact transfer matching.
+  bankRef              String?
+  amountPaise          BigInt
+  direction            Direction
+  balanceAfterPaise    BigInt?
+  channel              String?
+  counterparty         String?
+  merchantKey          String?
+  merchant             String?
+  mcc                  String?
+  merchantOverride     String?
+  categoryId           String?
+  category             Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categorizationMethod CategorizationMethod @default(DEFAULT)
+  confidence           Float                @default(0)
+  needsReview          Boolean              @default(true)
+  notes                String?
+  /// Account-scoped key used to detect duplicates across overlapping statements.
+  dedupeKey            String
+  isManual             Boolean              @default(false)
+  refundOfId           String?
+  refundOf             Transaction?         @relation("Refunds", fields: [refundOfId], references: [id], onDelete: SetNull)
+  refunds              Transaction[]        @relation("Refunds")
+  recurringId          String?
+  recurring            RecurringTransaction? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  transferOut InternalTransfer? @relation("TransferDebit")
+  transferIn  InternalTransfer? @relation("TransferCredit")
+  /// Payee name, note and tags from a payment app (Paytm) history, matched by UPI reference.
+  paymentAppEntry PaymentAppEntry?
+
+  @@unique([accountId, dedupeKey])
+  @@index([userId, txnDate])
+  @@index([userId, categoryId])
+  @@index([userId, needsReview])
+  @@index([userId, bankRef])
+  @@index([accountId, txnDate])
+}
+
+model Category {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  /// Stable identifier for built-in categories (survives renames).
+  key       String?
+  kind      CategoryKind
+  group     SpendGroup?
+  parentId  String?
+  parent    Category?     @relation("Subcategories", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Category[]    @relation("Subcategories")
+  color     String?
+  isSystem  Boolean       @default(false)
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+
+  transactions Transaction[]
+  rules        CategorizationRule[]
+  budgets      Budget[]
+  recurring    RecurringTransaction[]
+
+  @@unique([userId, name])
+  @@unique([userId, key])
+}
+
+model CategorizationRule {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  field        RuleField     @default(DESCRIPTION)
+  matchType    RuleMatchType @default(CONTAINS)
+  pattern      String
+  direction    Direction?
+  accountId    String?
+  minAmountPaise BigInt?
+  maxAmountPaise BigInt?
+  categoryId   String
+  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  merchantName String?
+  /// Lower runs first. User rules default to 10, built-in rules start at 100.
+  priority     Int           @default(10)
+  isSystem     Boolean       @default(false)
+  /// Confidence assigned to matches; below 0.8 the transaction is flagged for review.
+  confidence   Float         @default(0.95)
+  enabled      Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([userId, enabled, priority])
+}
+
+model InternalTransfer {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  debitTxnId    String      @unique
+  debitTxn      Transaction @relation("TransferDebit", fields: [debitTxnId], references: [id], onDelete: Cascade)
+  creditTxnId   String      @unique
+  creditTxn     Transaction @relation("TransferCredit", fields: [creditTxnId], references: [id], onDelete: Cascade)
+  status        MatchStatus @default(SUGGESTED)
+  confidence    Float
+  reason        String
+  createdAt     DateTime    @default(now())
+  decidedAt     DateTime?
+
+  @@index([userId, status])
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  amountPaise BigInt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, categoryId])
+}
+
+model FinancialGoal {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  targetAmountPaise  BigInt
+  currentAmountPaise BigInt    @default(0)
+  targetDate         DateTime? @db.Date
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model RecurringTransaction {
+  id                 String              @id @default(cuid())
+  userId             String
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Stable key: merchantKey + direction + amount band.
+  signature          String
+  label              String
+  merchantKey        String
+  direction          Direction
+  kind               RecurringKind       @default(OTHER)
+  frequency          RecurringFrequency
+  typicalAmountPaise BigInt
+  minAmountPaise     BigInt
+  maxAmountPaise     BigInt
+  occurrences        Int
+  firstDate          DateTime            @db.Date
+  lastDate           DateTime            @db.Date
+  nextExpectedDate   DateTime?           @db.Date
+  confidence         Float
+  status             MatchStatus         @default(SUGGESTED)
+  categoryId         String?
+  category           Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  transactions Transaction[]
+
+  @@unique([userId, signature])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@index([userId, createdAt])
+}
+
+/// An uploaded payment-app history (e.g. Paytm UPI statement). Not a bank account: it only
+/// enriches bank transactions with payee names, notes and tags. The file itself is never stored.
+model PaymentAppImport {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source        String
+  fileName      String
+  fileHash      String
+  parserVersion String
+  periodStart   DateTime?         @db.Date
+  periodEnd     DateTime?         @db.Date
+  entriesTotal  Int
+  createdAt     DateTime          @default(now())
+  entries       PaymentAppEntry[]
+
+  @@index([userId])
+}
+
+model PaymentAppEntry {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  importId      String
+  import        PaymentAppImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  source        String
+  upiRef        String
+  txnDate       DateTime         @db.Date
+  kind          PaymentAppKind
+  amountPaise   BigInt
+  payee         String
+  upiId         String?
+  note          String?
+  tags          String[]         @default([])
+  /// The app's label for the paying account, e.g. "Fi (Federal Bank) - 96".
+  account       String
+  transactionId String?          @unique
+  transaction   Transaction?     @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, source, upiRef, kind])
+  @@index([userId, upiRef])
+}
