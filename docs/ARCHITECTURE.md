@@ -40,6 +40,7 @@ statement file ─► sniff type ─► parse (PDF adapter | CSV/XLSX mapping)
 | `src/server/pipeline.ts` | Re-categorization and linking over a user's data |
 | `src/server/queries.ts` | Analytics loading, balances (verified/unverified/unknown), coverage gaps, data-quality warnings |
 | `src/server/auth.ts`, `session.ts`, `middleware.ts` | Single-user auth and route protection |
+| `src/lib/onboarding/steps.ts`, `src/server/onboarding.ts` | First-run setup: step rules evaluated from data counts (pure), progress query, audited onboarding flags on `UserSettings` |
 
 ## Data model highlights
 

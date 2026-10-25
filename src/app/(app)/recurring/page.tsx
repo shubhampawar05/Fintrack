@@ -6,6 +6,8 @@ import { dateToIso, formatDate } from "@/lib/dates";
 import { formatINR, toPaise } from "@/lib/money";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { SetupEmptyState } from "@/components/onboarding/setup-empty-state";
+import { getSetupPrerequisite } from "@/server/onboarding";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +17,7 @@ const PER_YEAR = { WEEKLY: 52, MONTHLY: 12, QUARTERLY: 4, YEARLY: 1 } as const;
 
 export default async function RecurringPage() {
   const user = await requireUser();
+  const prerequisite = await getSetupPrerequisite(user.id);
   const items = await prisma.recurringTransaction.findMany({ where: { userId: user.id }, include: { category: true }, orderBy: [{ status: "asc" }, { typicalAmountPaise: "desc" }] });
   const active = items.filter((i) => i.status !== "REJECTED");
   const outflowYear = active.filter((i) => i.direction === "DEBIT").reduce((t, i) => t + toPaise(i.typicalAmountPaise) * PER_YEAR[i.frequency], 0);
@@ -29,7 +32,9 @@ export default async function RecurringPage() {
         title="Recurring payments"
         description={`Detected only after at least 3 occurrences at a regular interval and similar amount. Active recurring outflows ≈ ${formatINR(outflowYear, { decimals: false })} per year.`}
       />
-      {!items.length ? (
+      {prerequisite ? (
+        <SetupEmptyState prerequisite={prerequisite} what="Recurring payments are detected from your imported transactions." />
+      ) : !items.length ? (
         <EmptyState icon={<Repeat />} title="Nothing recurring detected yet" description="Import a few months of statements. Rent, salary, subscriptions, EMIs, insurance and regular family transfers appear here once they repeat." />
       ) : (
         <div className="space-y-6">

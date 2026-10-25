@@ -16,9 +16,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PrintButton } from "./print-button";
+import { SetupEmptyState } from "@/components/onboarding/setup-empty-state";
+import { getSetupPrerequisite } from "@/server/onboarding";
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await requireUser();
+  const prerequisite = await getSetupPrerequisite(user.id);
+  if (prerequisite) {
+    return (
+      <>
+        <PageHeader title="Monthly reports" description="A month-by-month summary you can export to CSV or PDF." />
+        <SetupEmptyState prerequisite={prerequisite} what="Reports summarize your imported transactions month by month." />
+      </>
+    );
+  }
   const month = monthFromParams(await searchParams, addMonths(todayIso(), -1).slice(0, 7));
   const r = await buildMonthlyReport(user.id, month);
   const c = r.current;

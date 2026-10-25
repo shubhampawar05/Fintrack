@@ -24,7 +24,13 @@ export default async function AccountsPage() {
     <>
       <PageHeader title="Bank accounts" description="Each account is imported separately. Balances are verified from statement closing balances." actions={<AccountFormDialog />} />
       {!overview.length ? (
-        <EmptyState icon={<Landmark />} title="No accounts yet" description="Add one entry per bank account (e.g. Kotak, Federal Bank, Bank of Maharashtra), then import their statements." />
+        <EmptyState
+          icon={<Landmark />}
+          title="No accounts yet"
+          description="Add one entry per bank account (e.g. Kotak, Federal Bank, Bank of Maharashtra), then import their statements. Only the bank name, account type and last 4 digits are needed — never passwords, PINs or full account numbers."
+          action={<AccountFormDialog />}
+          secondary={{ href: "/guide", label: "See all setup steps" }}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {overview.map((a) => {

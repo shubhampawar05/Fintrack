@@ -32,7 +32,12 @@ export default async function GoalsPage() {
         actions={<GoalDialog />}
       />
       {!goals.length ? (
-        <EmptyState icon={<GoalIcon />} title="No goals yet" description="Create goals like an emergency fund, a trip or a down payment and track progress toward them." />
+        <EmptyState
+          icon={<GoalIcon />}
+          title="No goals yet"
+          description="Create goals like an emergency fund, a trip or a down payment and track progress toward them. You can create one before importing any statements."
+          action={<GoalDialog />}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {goals.map((g) => {
