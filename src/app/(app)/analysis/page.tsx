@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Lightbulb } from "lucide-react";
 import { requireUser } from "@/server/auth";
+import { withSavedRange } from "@/server/saved-filters";
 import { prisma } from "@/server/db";
 import { getAnalyticsOptions, getAnalyticsTxns } from "@/server/queries";
 import { computeSummary, compareCategories, incomeCaptured, largestExpenses, type Summary } from "@/lib/finance/analytics";
@@ -30,7 +31,7 @@ const FOCUS: { label: string; keys: string[] }[] = [
 
 export default async function AnalysisPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await requireUser();
-  const sp = await searchParams;
+  const sp = await withSavedRange(await searchParams);
   const { preset, range, label } = rangeFromParams(sp, "last-month");
   const rq = rangeQuery(preset, range);
   const tx = (q: Record<string, string>) => href("/transactions", { ...rq, ...q });

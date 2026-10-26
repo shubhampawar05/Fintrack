@@ -10,6 +10,15 @@ export const RANGE_PRESETS: { value: RangePreset; label: string }[] = [
   { value: "custom", label: "Custom range" },
 ];
 
+/** Cookies remembering the last range / month the user picked, so pages don't reset to their defaults. */
+export const RANGE_COOKIE = "ft_range";
+export const MONTH_COOKIE = "ft_month";
+
+/** Remember a filter choice for a year (client-side only). Values are plain [a-z0-9-|], so no encoding needed. */
+export function rememberChoice(name: string, value: string) {
+  document.cookie = `${name}=${value}; path=/; max-age=31536000; samesite=lax`;
+}
+
 export type SearchParams = Record<string, string | string[] | undefined>;
 
 export function readParam(sp: SearchParams, key: string): string | undefined {

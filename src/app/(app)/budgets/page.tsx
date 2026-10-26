@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, PiggyBank } from "lucide-react";
 import { requireUser } from "@/server/auth";
+import { withSavedMonth } from "@/server/saved-filters";
 import { prisma } from "@/server/db";
 import { getAnalyticsOptions, getAnalyticsTxns } from "@/server/queries";
 import { computeSummary } from "@/lib/finance/analytics";
@@ -19,7 +20,7 @@ import { BudgetDialog, DeleteBudget } from "./budget-form";
 
 export default async function BudgetsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await requireUser();
-  const month = monthFromParams(await searchParams, todayIso().slice(0, 7));
+  const month = monthFromParams(await withSavedMonth(await searchParams), todayIso().slice(0, 7));
   const range = { from: `${month}-01`, to: endOfMonth(`${month}-01`) };
   const [budgets, categories, txns, options] = await Promise.all([
     prisma.budget.findMany({ where: { userId: user.id }, include: { category: true } }),

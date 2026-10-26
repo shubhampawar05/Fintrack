@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CircleHelp } from "lucide-react";
 import { requireUser } from "@/server/auth";
+import { withSavedRange } from "@/server/saved-filters";
 import { prisma } from "@/server/db";
 import { getAnalyticsOptions, getAnalyticsTxns } from "@/server/queries";
 import { getSetupPrerequisite } from "@/server/onboarding";
@@ -26,7 +27,7 @@ const OUT_HINT: Partial<Record<OutBucket, string>> = {
 
 export default async function MoneyFlowPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await requireUser();
-  const sp = await searchParams;
+  const sp = await withSavedRange(await searchParams);
   const { preset, range, label } = rangeFromParams(sp, "last-3-months");
   const rq = rangeQuery(preset, range);
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Download } from "lucide-react";
 import { requireUser } from "@/server/auth";
+import { withSavedMonth } from "@/server/saved-filters";
 import { buildMonthlyReport } from "@/server/report";
 import { formatDate, formatMonth, todayIso, addMonths } from "@/lib/dates";
 import { formatINR, toPaise } from "@/lib/money";
@@ -30,7 +31,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       </>
     );
   }
-  const month = monthFromParams(await searchParams, addMonths(todayIso(), -1).slice(0, 7));
+  const month = monthFromParams(await withSavedMonth(await searchParams), addMonths(todayIso(), -1).slice(0, 7));
   const r = await buildMonthlyReport(user.id, month);
   const c = r.current;
   const p = r.previous;

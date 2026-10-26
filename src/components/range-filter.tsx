@@ -2,7 +2,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
-import { RANGE_PRESETS } from "@/lib/range-params";
+import { RANGE_COOKIE, RANGE_PRESETS, rememberChoice } from "@/lib/range-params";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ export function RangeFilter({ preset, from, to }: { preset: string; from: string
       else sp.set(k, v);
     }
     sp.delete("page");
+    if (next.range) rememberChoice(RANGE_COOKIE, [next.range, next.from ?? "", next.to ?? ""].join("|"));
     start(() => router.push(`${pathname}?${sp.toString()}`));
   }
 
