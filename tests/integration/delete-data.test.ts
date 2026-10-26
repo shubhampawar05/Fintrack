@@ -7,6 +7,7 @@ import { ensureUserDefaults } from "@/server/bootstrap";
 import { commitImport, createPreview } from "@/server/imports";
 import { importPaymentAppStatement } from "@/server/payment-app";
 import { deleteAllUserData } from "@/server/delete-data";
+import { createPersonFromKey } from "@/server/people";
 
 const fixture = (f: string) => new Uint8Array(readFileSync(path.join(__dirname, "../fixtures/statements", f)));
 
@@ -31,6 +32,7 @@ async function seededUser(email: string) {
   const p = await createPreview({ userId: user.id, accountId: account.id, fileName: "f.pdf", bytes: fixture("federal-synthetic.pdf") });
   if (!p.ok) throw new Error(p.message);
   await commitImport(user.id, p.importId);
+  await createPersonFromKey(user.id, { name: "Friend", merchantKey: "friend123@okaxis" });
   await importPaymentAppStatement({ userId: user.id, fileName: "paytm.pdf", bytes: fixture("paytm-synthetic.pdf") });
   return user.id;
 }
@@ -42,6 +44,7 @@ describe("delete everything", () => {
     const before = await countsFor(userId);
     expect(before.PaymentAppEntry).toBeGreaterThan(0);
     expect(before.Transaction).toBeGreaterThan(0);
+    expect([before.Person, before.PersonKey]).toEqual([1, 1]);
     const otherBefore = await countsFor(otherId);
 
     await deleteAllUserData(userId);

@@ -113,6 +113,13 @@ enum RecurringKind {
   OTHER
 }
 
+/// Who attributed a transaction to a person: AUTO follows the person's linked counterparties,
+/// USER is a manual choice that automatic linking never changes.
+enum PersonSource {
+  AUTO
+  USER
+}
+
 enum CcPaymentTreatment {
   AUTO // excluded if any credit-card account is tracked, otherwise counted separately as unitemized card spend
   EXPENSE
@@ -138,6 +145,8 @@ model User {
   auditLogs     AuditLog[]
   paymentAppImports PaymentAppImport[]
   paymentAppEntries PaymentAppEntry[]
+  people        Person[]
+  personKeys    PersonKey[]
 }
 
 model UserSettings {
@@ -293,6 +302,10 @@ model Transaction {
   refunds              Transaction[]        @relation("Refunds")
   recurringId          String?
   recurring            RecurringTransaction? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
+  /// The friend or family member this transaction was with (attribution only; never sets the category).
+  personId             String?
+  person               Person?              @relation(fields: [personId], references: [id], onDelete: SetNull)
+  personSource         PersonSource?
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
@@ -307,6 +320,7 @@ model Transaction {
   @@index([userId, needsReview])
   @@index([userId, bankRef])
   @@index([accountId, txnDate])
+  @@index([userId, personId])
 }
 
 model Category {
@@ -491,4 +505,39 @@ model PaymentAppEntry {
 
   @@unique([userId, source, upiRef, kind])
   @@index([userId, upiRef])
+}
+
+/// A friend or family member the user exchanges money with. The balance is never stored:
+/// it is derived from the opening balance and the person's lending transactions.
+model Person {
+  id                  String        @id @default(cuid())
+  userId              String
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  /// Lower-cased, trimmed name; keeps names unique per user regardless of case.
+  nameKey             String
+  /// Positive: they owed the user money before the first statement; negative: the user owed them.
+  openingBalancePaise BigInt        @default(0)
+  openingAsOf         DateTime?     @db.Date
+  notes               String?
+  createdAt           DateTime      @default(now())
+
+  keys         PersonKey[]
+  transactions Transaction[]
+
+  @@unique([userId, nameKey])
+}
+
+/// Links a counterparty (Transaction.merchantKey) to a person. A counterparty belongs to at most one person.
+model PersonKey {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personId    String
+  person      Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  merchantKey String
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, merchantKey])
+  @@index([personId])
 }

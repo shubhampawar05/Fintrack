@@ -7,6 +7,8 @@ import { commitImport, createPreview, deleteImport, setRowsExcluded } from "@/se
 import { getAnalyticsOptions, getAnalyticsTxns } from "@/server/queries";
 import { computeSummary } from "@/lib/finance/analytics";
 import { deletePaymentAppImport, importPaymentAppStatement } from "@/server/payment-app";
+import { assignPerson, createPersonFromKey, tagPersonTransactions } from "@/server/people";
+import { recategorize } from "@/server/pipeline";
 
 const dir = path.join(__dirname, "../fixtures/statements");
 const file = (f: string) => new Uint8Array(readFileSync(path.join(dir, f)));
@@ -170,5 +172,36 @@ describe("statement import pipeline", () => {
     await expect(commitImport(other.id, imp.id)).rejects.toThrow(/not found/);
     await expect(deleteImport(other.id, imp.id, true)).rejects.toThrow(/not found/);
     await expect(createPreview({ userId: other.id, accountId: acct.kotak, fileName: "x.pdf", bytes: file("kotak-synthetic.pdf") })).rejects.toThrow(/not found/);
+  });
+});
+
+describe("people attribution in the pipeline", () => {
+  it("attributes new imports from a linked counterparty without changing their category, and re-running rules keeps people", async () => {
+    const owner = await prisma.user.create({ data: { email: `people-pipeline-${Date.now()}@example.com`, name: "Pipeline" } });
+    await ensureUserDefaults(owner.id);
+    const account = await prisma.bankAccount.create({ data: { userId: owner.id, displayName: "Federal", bankName: "Federal" } });
+    const commit = async (f: string) => {
+      const p = await createPreview({ userId: owner.id, accountId: account.id, fileName: f, bytes: file(f) });
+      if (!p.ok) throw new Error(p.message);
+      await commitImport(owner.id, p.importId);
+    };
+    await commit("federal-synthetic.pdf");
+    const swiggy = await prisma.transaction.findFirstOrThrow({ where: { userId: owner.id, description: { contains: "swiggy" } } });
+    const person = await createPersonFromKey(owner.id, { name: "Canteen friend", merchantKey: swiggy.merchantKey! });
+    const friendLoan = await prisma.transaction.findFirstOrThrow({ where: { userId: owner.id, description: { contains: "friend123" } } });
+    await assignPerson(owner.id, [friendLoan.id], person.id);
+    await tagPersonTransactions(owner.id, [friendLoan.id], "loan");
+
+    await commit("federal-synthetic-overlap.pdf");
+    const april = await prisma.transaction.findMany({ where: { userId: owner.id, amountPaise: 640_00n }, include: { category: true } });
+    expect(april).toHaveLength(2);
+    for (const t of april) expect({ personId: t.personId, source: t.personSource, category: t.category?.key }).toEqual({ personId: person.id, source: "AUTO", category: "food" });
+
+    const snapshot = () => prisma.transaction.findMany({ where: { userId: owner.id }, select: { id: true, personId: true, personSource: true }, orderBy: { id: "asc" } });
+    const before = await snapshot();
+    await recategorize(owner.id);
+    expect(await snapshot()).toEqual(before);
+    const loan = await prisma.transaction.findUniqueOrThrow({ where: { id: friendLoan.id }, include: { category: true } });
+    expect({ category: loan.category?.key, method: loan.categorizationMethod }).toEqual({ category: "lending", method: "USER" });
   });
 });

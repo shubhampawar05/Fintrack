@@ -3,12 +3,21 @@ import { expect, test, type Page } from "@playwright/test";
 
 const fixture = (f: string) => path.join(__dirname, "../fixtures/statements", f);
 
+// Logins are rate limited (5 per 15 minutes), so later tests reuse the first session's cookie.
+let session: Awaited<ReturnType<ReturnType<Page["context"]>["cookies"]>> | null = null;
+
 async function login(page: Page) {
+  if (session) {
+    await page.context().addCookies(session);
+    await page.goto("/");
+    return;
+  }
   await page.goto("/login");
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   // On a first visit the walkthrough dialog hides the page from the accessibility tree, so wait on the URL.
   await expect(page).toHaveURL(/\/$/);
+  session = await page.context().cookies();
 }
 
 test.describe.configure({ mode: "serial" });
@@ -110,4 +119,33 @@ test("dashboard and analysis show real totals", async ({ page }) => {
   await page.goto("/analysis?range=custom&from=2026-01-01&to=2026-03-31");
   await expect(page.getByRole("heading", { name: "Where is my money going?" })).toBeVisible();
   await expect(page.getByText("Rent and housing").first()).toBeVisible();
+});
+
+test("people: make a person, tag a loan, see the balance and money flow", async ({ page }) => {
+  await login(page);
+  // The Kotak fixture has an untagged ₹3,000 payment to Ravi Kumar.
+  await page.goto("/money-flow?range=all");
+  const unknown = page.getByRole("main").locator("[data-slot=card]").filter({ hasText: "Not yet classified" }).first();
+  await expect(unknown.getByRole("link", { name: "Ravi Kumar" })).toBeVisible();
+
+  await page.goto("/people");
+  await expect(page.getByText("No people yet")).toBeVisible();
+  await page.getByRole("listitem").filter({ hasText: "Ravi Kumar" }).getByRole("button", { name: "Make a person" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Create person" }).click();
+  await expect(page.getByRole("heading", { name: "Ravi Kumar" })).toBeVisible({ timeout: 30_000 });
+
+  const toTag = page.locator("[data-slot=card]").filter({ hasText: "To tag" });
+  await toTag.getByRole("checkbox", { name: /Select Ravi Kumar/ }).click();
+  await toTag.getByRole("combobox", { name: "What were these?" }).click();
+  await page.getByRole("option", { name: "Loan or repayment" }).click();
+  await toTag.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByText("Ravi Kumar owes you")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("To tag")).toHaveCount(0);
+
+  await page.goto("/people");
+  await expect(page.getByRole("link", { name: /Ravi Kumar/ })).toContainText("owes you");
+
+  await page.goto("/money-flow?range=all");
+  await expect(unknown.getByRole("link", { name: "Ravi Kumar" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Lent or repaid to people/ })).toContainText("₹3,000");
 });

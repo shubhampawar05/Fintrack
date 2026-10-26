@@ -18,6 +18,8 @@ import { TransferSuggestions } from "./transfer-suggestions";
 import { ManualTransactionDialog } from "./manual-dialog";
 import { RerunRulesButton } from "./rerun-rules";
 import { CounterpartyReview, type CounterpartyGroup } from "./counterparty-review";
+import { personByKey } from "@/server/people";
+import { extractCounterparty } from "@/lib/categorize/counterparty";
 
 const PAGE_SIZE = 50;
 
@@ -56,7 +58,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     });
     const byKey = new Map<string, CounterpartyGroup>();
     for (const row of g) {
-      const cur = byKey.get(row.merchantKey!) ?? { merchantKey: row.merchantKey!, label: row.merchantKey!, count: 0, outPaise: 0, inPaise: 0 };
+      const cur = byKey.get(row.merchantKey!) ?? { merchantKey: row.merchantKey!, label: row.merchantKey!, count: 0, outPaise: 0, inPaise: 0, personId: null, isPerson: false };
       cur.count += row._count;
       if (row.direction === "DEBIT") cur.outPaise += toPaise(row._sum.amountPaise);
       else cur.inPaise += toPaise(row._sum.amountPaise);
@@ -66,11 +68,14 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     const labels = await prisma.transaction.findMany({
       where: { userId: user.id, merchantKey: { in: groups.map((x) => x.merchantKey) } },
       distinct: ["merchantKey"],
-      select: { merchantKey: true, merchant: true, merchantOverride: true },
+      select: { merchantKey: true, merchant: true, merchantOverride: true, description: true, paymentAppEntry: { select: { kind: true } } },
     });
+    const people = await personByKey(user.id, groups.map((x) => x.merchantKey));
     for (const x of groups) {
       const l = labels.find((y) => y.merchantKey === x.merchantKey);
       x.label = l?.merchantOverride || l?.merchant || x.merchantKey;
+      x.personId = people.get(x.merchantKey) ?? null;
+      x.isPerson = !!l && (extractCounterparty(l.description).isPerson || (l.paymentAppEntry !== null && l.paymentAppEntry.kind !== "SELF"));
     }
   }
   const sum = (d: "DEBIT" | "CREDIT") => toPaise(sums.find((s) => s.direction === d)?._sum.amountPaise ?? 0n);

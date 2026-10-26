@@ -63,7 +63,7 @@ export function TransactionFilters({ accounts, categories, sort }: { accounts: {
     </Select>
   );
 
-  const active = ["q", "account", "category", "kind", "direction", "min", "max", "review", "merchant"].some((k) => params.get(k));
+  const active = ["q", "account", "category", "kind", "group", "direction", "min", "max", "review", "merchant"].some((k) => params.get(k));
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <div className="relative w-full sm:w-64">
@@ -110,7 +110,7 @@ export function TransactionFilters({ accounts, categories, sort }: { accounts: {
             setQ("");
             setMin("");
             setMax("");
-            set({ q: null, account: null, category: null, kind: null, direction: null, min: null, max: null, review: null, merchant: null });
+            set({ q: null, account: null, category: null, kind: null, group: null, direction: null, min: null, max: null, review: null, merchant: null });
           }}
         >
           <X /> Clear
