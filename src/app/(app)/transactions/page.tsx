@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Download, ListFilter } from "lucide-react";
 import { requireUser } from "@/server/auth";
+import { withSavedRange } from "@/server/saved-filters";
 import { prisma } from "@/server/db";
 import { buildTransactionFilter } from "@/server/transactions-query";
 import { dateToIso } from "@/lib/dates";
@@ -25,7 +26,7 @@ const PAGE_SIZE = 50;
 
 export default async function TransactionsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await requireUser();
-  const sp = await searchParams;
+  const sp = await withSavedRange(await searchParams);
   const { where, orderBy, preset, range, label, sortKey } = buildTransactionFilter(user.id, sp);
   const page = Math.max(1, Number(readParam(sp, "page") ?? 1) || 1);
   const [rows, total, sums, accounts, categories, suggestions] = await Promise.all([

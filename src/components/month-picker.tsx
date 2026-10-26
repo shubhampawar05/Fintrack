@@ -3,6 +3,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { addMonths, formatMonth } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
+import { MONTH_COOKIE, rememberChoice } from "@/lib/range-params";
 
 export function MonthPicker({ month }: { month: string }) {
   const router = useRouter();
@@ -11,6 +12,7 @@ export function MonthPicker({ month }: { month: string }) {
   const go = (m: string) => {
     const sp = new URLSearchParams(params.toString());
     sp.set("month", m);
+    rememberChoice(MONTH_COOKIE, m);
     router.push(`${pathname}?${sp.toString()}`);
   };
   const shift = (n: number) => addMonths(`${month}-01`, n).slice(0, 7);
