@@ -14,6 +14,7 @@ import { StatCard } from "@/components/stat-card";
 import { Money } from "@/components/money";
 import { MonthlyBars, RankedBars, SplitBar } from "@/components/charts";
 import { SetupEmptyState } from "@/components/onboarding/setup-empty-state";
+import { UnclassifiedNotice } from "@/components/unclassified-notice";
 import { getSetupPrerequisite } from "@/server/onboarding";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +90,16 @@ export default async function AnalysisPage({ searchParams }: { searchParams: Pro
       />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Spent" value={formatINR(s.expenses, { decimals: false })} hint={`${s.expensesByCategory.reduce((t, c) => t + c.count, 0)} transactions · refunds ${formatINR(s.refunds, { decimals: false })} netted`} />
+        <StatCard
+          label="Spent"
+          value={formatINR(s.expenses, { decimals: false })}
+          hint={
+            <>
+              {`${s.expensesByCategory.reduce((t, c) => t + c.count, 0)} transactions · refunds ${formatINR(s.refunds, { decimals: false })} netted`}
+              <UnclassifiedNotice paise={s.unclassifiedOut} rangeQuery={rq} />
+            </>
+          }
+        />
         <StatCard
           label="Change vs previous period"
           value={
@@ -283,7 +293,14 @@ export default async function AnalysisPage({ searchParams }: { searchParams: Pro
           <CardContent>
             <RankedBars
               max={8}
-              data={s.topMerchants.map((m) => ({ label: m.merchant, amount: m.amountPaise, pct: m.pct, sub: `${m.count} payment(s)`, href: m.merchantKey ? tx({ merchant: m.merchantKey }) : undefined }))}
+              data={s.topMerchants.map((m) => ({
+                id: m.merchant,
+                label: m.merchant,
+                amount: m.amountPaise,
+                pct: m.pct,
+                sub: `${m.count} payment(s)`,
+                href: tx({ q: m.merchant }),
+              }))}
             />
           </CardContent>
         </Card>

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CategoryKind } from "@prisma/client";
@@ -8,6 +9,7 @@ import { formatINR } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategorySelect } from "./transactions-table";
+import { MakePersonButton } from "../people/make-person";
 
 export interface CounterpartyGroup {
   merchantKey: string;
@@ -15,6 +17,9 @@ export interface CounterpartyGroup {
   count: number;
   outPaise: number;
   inPaise: number;
+  /** Set when this counterparty is already linked to a person. */
+  personId: string | null;
+  isPerson: boolean;
 }
 
 function Row({ g, categories }: { g: CounterpartyGroup; categories: { id: string; name: string; kind: CategoryKind }[] }) {
@@ -31,7 +36,14 @@ function Row({ g, categories }: { g: CounterpartyGroup; categories: { id: string
           {g.inPaise > 0 && ` · received ${formatINR(g.inPaise, { decimals: false })}`}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {g.personId ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/people/${g.personId}`}>Open person</Link>
+          </Button>
+        ) : (
+          g.isPerson && <MakePersonButton merchantKey={g.merchantKey} suggestedName={g.label} />
+        )}
         <CategorySelect value={cat} categories={categories} onChange={setCat} className="w-56" label={`Category for ${g.label}`} />
         <Button
           size="sm"
@@ -60,7 +72,7 @@ export function CounterpartyReview({ groups, categories }: { groups: Counterpart
       <CardHeader>
         <CardTitle>Review by person or merchant</CardTitle>
         <CardDescription>
-          The counterparties with the most transactions awaiting review. Choose what they are — e.g. Family support, Personal lending and repayments, Rent, or Transfers between my own accounts — and future imports will follow the same rule.
+          The counterparties with the most transactions awaiting review. Choose what they are — e.g. Family support, Rent, or Transfers between my own accounts — and future imports will follow the same rule. For friends whose payments vary (loans, card money, shared bills), make them a person instead and tag each payment.
         </CardDescription>
       </CardHeader>
       <CardContent>

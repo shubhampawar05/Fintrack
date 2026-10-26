@@ -18,7 +18,7 @@ export async function getAnalyticsOptions(userId: string): Promise<AnalyticsOpti
 }
 
 /** Load transactions in shape needed by analytics. `range` may be widened by callers for comparisons. */
-export async function getAnalyticsTxns(userId: string, range?: DateRange): Promise<AnalyticsTxn[]> {
+export async function getAnalyticsTxns(userId: string, range?: DateRange): Promise<(AnalyticsTxn & { personId: string | null })[]> {
   const rows = await prisma.transaction.findMany({
     where: { userId, ...(range ? { txnDate: { gte: isoToDate(range.from), lte: isoToDate(range.to) } } : {}) },
     include: { category: true, refundOf: { include: { category: true } } },
@@ -37,6 +37,7 @@ export async function getAnalyticsTxns(userId: string, range?: DateRange): Promi
     group: t.category?.group ?? null,
     merchant: t.merchantOverride || t.merchant || t.description.slice(0, 40),
     merchantKey: t.merchantKey,
+    personId: t.personId,
     description: t.description,
     refundOf: t.refundOf
       ? {

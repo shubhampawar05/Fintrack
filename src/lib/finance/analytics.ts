@@ -153,11 +153,12 @@ export function computeSummary(txns: AnalyticsTxn[], range: DateRange, opts: Ana
       add(expenseCats, cat.id ?? "none", cat.name, cat.group, c.expense);
       groups[cat.group ?? "UNGROUPED"] += c.expense;
       if (c.expense > 0) {
-        const key = t.merchantKey ?? t.merchant;
-        const mb = merchants.get(key) ?? { amount: 0, count: 0, name: t.merchant, group: null, key: t.merchantKey };
+        const groupKey = t.merchant;
+        const mb = merchants.get(groupKey) ?? { amount: 0, count: 0, name: t.merchant, group: null, key: t.merchantKey };
         mb.amount += c.expense;
         mb.count += 1;
-        merchants.set(key, mb);
+        if (!mb.key && t.merchantKey) mb.key = t.merchantKey;
+        merchants.set(groupKey, mb);
       }
     }
     const debit = t.direction === "DEBIT";

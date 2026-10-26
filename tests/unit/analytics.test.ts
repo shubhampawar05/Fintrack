@@ -84,6 +84,21 @@ describe("computeSummary — accounting rules", () => {
     const rentRow = s.expensesByCategory.find((c) => c.categoryId === "rent")!;
     expect(rentRow.pct).toBe(62); // 18,000 / 29,050
   });
+
+  it("aggregates top merchants by display name when merchant keys differ", () => {
+    const cheqA = tx({
+      direction: "DEBIT", amountPaise: 5_000_00, categoryKind: "EXPENSE", categoryKey: "cc-payment",
+      merchant: "CheQ (card bill)", merchantKey: "merchant:cheq",
+    });
+    const cheqB = tx({
+      direction: "DEBIT", amountPaise: 7_000_00, categoryKind: "EXPENSE", categoryKey: "cc-payment",
+      merchant: "CheQ (card bill)", merchantKey: "chqcc",
+    });
+    const top = computeSummary([cheqA, cheqB], MARCH, { ccPaymentsAsExpense: false }).topMerchants;
+    expect(top.filter((m) => m.merchant === "CheQ (card bill)")).toEqual([
+      { merchant: "CheQ (card bill)", merchantKey: "merchant:cheq", amountPaise: 12_000_00, count: 2, pct: 100 },
+    ]);
+  });
 });
 
 describe("credit-card payment treatment", () => {

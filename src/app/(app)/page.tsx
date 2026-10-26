@@ -13,6 +13,7 @@ import { StatCard } from "@/components/stat-card";
 import { Money } from "@/components/money";
 import { MonthlyBars, RankedBars } from "@/components/charts";
 import { DataWarnings } from "@/components/data-warnings";
+import { UnclassifiedNotice } from "@/components/unclassified-notice";
 import { getSetupProgress } from "@/server/onboarding";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
 import { HowItWorks } from "@/components/onboarding/how-it-works";
@@ -95,14 +96,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           label="Expenses"
           value={formatINR(s.expenses, { decimals: false })}
           hint={
-            spendChange === null ? (
-              "No previous period to compare"
-            ) : (
-              <span className="inline-flex items-center gap-1">
-                {spendChange > 0 ? <ArrowUpRight className="size-3.5" /> : <ArrowDownRight className="size-3.5" />}
-                {Math.abs(spendChange)}% vs previous period ({formatINR(p.expenses, { decimals: false })})
-              </span>
-            )
+            <>
+              {spendChange === null ? (
+                "No previous period to compare"
+              ) : (
+                <span className="inline-flex items-center gap-1">
+                  {spendChange > 0 ? <ArrowUpRight className="size-3.5" /> : <ArrowDownRight className="size-3.5" />}
+                  {Math.abs(spendChange)}% vs previous period ({formatINR(p.expenses, { decimals: false })})
+                </span>
+              )}
+              <UnclassifiedNotice paise={s.unclassifiedOut} rangeQuery={rq} />
+            </>
           }
         />
         <StatCard

@@ -35,8 +35,14 @@ export function buildTransactionFilter(userId: string, sp: SearchParams) {
   const category = readParam(sp, "category");
   if (category === "none") where.categoryId = null;
   else if (category) where.categoryId = category;
-  const kind = readParam(sp, "kind") as CategoryKind | undefined;
-  if (kind && KINDS.includes(kind)) where.category = { kind };
+  // One kind or several ("REFUND,INCOME"), optionally narrowed to a spending group (Money flow buckets).
+  const kinds = (readParam(sp, "kind") ?? "").split(",").filter((k): k is CategoryKind => KINDS.includes(k as CategoryKind));
+  const group = readParam(sp, "group");
+  const groupFilter: Prisma.CategoryWhereInput =
+    group === "FAMILY" ? { group: "FAMILY" } : group === "PERSONAL" ? { OR: [{ group: null }, { group: { not: "FAMILY" } }] } : {};
+  if (kinds.includes("UNCLASSIFIED")) {
+    and.push({ OR: [{ categoryId: null }, { category: { kind: { in: kinds } } }] });
+  } else if (kinds.length) where.category = { kind: { in: kinds }, ...groupFilter };
   const direction = readParam(sp, "direction");
   if (direction === "DEBIT" || direction === "CREDIT") where.direction = direction;
   const min = parseAmountToPaise(readParam(sp, "min") ?? "");

@@ -61,14 +61,14 @@ export function RankedBars({
   data,
   max,
 }: {
-  data: { label: string; amount: Paise; pct?: number | null; href?: string; sub?: string }[];
+  data: { id?: string; label: string; amount: Paise; pct?: number | null; href?: string; sub?: string }[];
   max?: number;
 }) {
   const top = Math.max(...data.map((d) => d.amount), 1);
   const rows = max ? data.slice(0, max) : data;
   return (
     <ul className="space-y-3">
-      {rows.map((d) => {
+      {rows.map((d, i) => {
         const body = (
           <>
             <div className="flex items-baseline justify-between gap-3 text-sm">
@@ -85,7 +85,7 @@ export function RankedBars({
           </>
         );
         return (
-          <li key={d.label} title={`${d.label}: ${formatINR(d.amount)}${d.pct != null ? ` (${d.pct}%)` : ""}`}>
+          <li key={d.id ?? `${i}-${d.label}`} title={`${d.label}: ${formatINR(d.amount)}${d.pct != null ? ` (${d.pct}%)` : ""}`}>
             {d.href ? (
               <Link href={d.href} className="block rounded-md outline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring">
                 {body}

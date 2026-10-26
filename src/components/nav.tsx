@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  ArrowLeftRight, BarChart3, Compass, FileText, Goal, Landmark, LayoutDashboard, Menu, PiggyBank, Repeat, Settings, Upload,
+  ArrowLeftRight, BarChart3, Compass, FileText, Goal, Landmark, LayoutDashboard, Menu, PiggyBank, Repeat, Settings, Upload, Users, Waypoints,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,8 @@ export const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/analysis", label: "Spending Analysis", icon: BarChart3 },
+  { href: "/money-flow", label: "Money Flow", icon: Waypoints },
+  { href: "/people", label: "People", icon: Users },
   { href: "/accounts", label: "Bank Accounts", icon: Landmark },
   { href: "/import", label: "Import Statements", icon: Upload },
   { href: "/budgets", label: "Budgets", icon: PiggyBank },

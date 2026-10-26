@@ -188,7 +188,35 @@ export async function runLinking(userId: string): Promise<{ refunds: number; tra
 
   // 3) Recurring payments
   const recurringCount = await refreshRecurring(userId);
+
+  // 4) People: payment-app enrichment can change a counterparty key, so attribution runs last.
+  await attributePeople(userId);
   return { refunds: links.length, transfers: matches.length, recurring: recurringCount };
+}
+
+/**
+ * Attribute transactions to people from their linked counterparties. Only rows with no person or an
+ * automatic one are touched (never USER attributions), and categories are never changed.
+ */
+export async function attributePeople(userId: string): Promise<number> {
+  const keys = await prisma.personKey.findMany({ where: { userId }, select: { personId: true, merchantKey: true } });
+  const auto = { OR: [{ personSource: null }, { personSource: "AUTO" as const }] };
+  let changed = 0;
+  const byPerson = new Map<string, string[]>();
+  for (const k of keys) byPerson.set(k.personId, [...(byPerson.get(k.personId) ?? []), k.merchantKey]);
+  for (const [personId, merchantKeys] of byPerson) {
+    const r = await prisma.transaction.updateMany({
+      where: { userId, merchantKey: { in: merchantKeys }, AND: [auto, { OR: [{ personId: null }, { personId: { not: personId } }] }] },
+      data: { personId, personSource: "AUTO" },
+    });
+    changed += r.count;
+  }
+  // Automatic attributions whose counterparty is no longer linked to anyone.
+  const cleared = await prisma.transaction.updateMany({
+    where: { userId, personSource: "AUTO", OR: [{ merchantKey: null }, { merchantKey: { notIn: keys.map((k) => k.merchantKey) } }] },
+    data: { personId: null, personSource: null },
+  });
+  return changed + cleared.count;
 }
 
 export async function refreshRecurring(userId: string): Promise<number> {
