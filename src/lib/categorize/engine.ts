@@ -1,5 +1,5 @@
 import type { CategorizationMethod, Direction, RuleField, RuleMatchType } from "@prisma/client";
-import { extractCounterparty, isOwnCounterparty, isTruncatedOwnName, knownMerchant, sharesSurname, titleCase, type Counterparty } from "./counterparty";
+import { extractCounterparty, isOwnCounterparty, isTruncatedOwnName, knownMerchant, PAYMENT_APPS, sharesSurname, titleCase, type Counterparty } from "./counterparty";
 import { MCC_CATEGORY, categoryForTags } from "./defaults";
 
 export const REVIEW_THRESHOLD = 0.8;
@@ -118,7 +118,9 @@ export function ruleMatches(rule: RuleLike, txn: TxnInput, cp: Counterparty): bo
 export function categorize(txn: TxnInput, ctx: CategorizeContext): CategorizeResult {
   const cp = extractCounterparty(txn.description);
   // Federal narrations only carry a UPI ID ("UPI 98xxxxxxxx"); the payment app knows the name.
-  if (txn.app?.payee && txn.app.kind !== "SELF" && !cp.name && cp.channel === "UPI" && !knownMerchant(cp.vpa ?? "")) {
+  // A UPI ID like "paytmqr…@paytm" only names the app that carried the payment, so the payee name wins there too.
+  const vpaMerchant = knownMerchant(cp.vpa ?? "");
+  if (txn.app?.payee && txn.app.kind !== "SELF" && !cp.name && cp.channel === "UPI" && (!vpaMerchant || PAYMENT_APPS.has(vpaMerchant))) {
     cp.display = titleCase(txn.app.payee);
   }
   const cat = (key: string) => {

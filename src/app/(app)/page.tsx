@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, CircleHelp, Landmark, Upload, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, CircleHelp, Wallet } from "lucide-react";
 import { requireUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { getAccountsOverview, getAnalyticsOptions, getAnalyticsTxns, getDataQualityWarnings } from "@/server/queries";
@@ -13,7 +13,9 @@ import { StatCard } from "@/components/stat-card";
 import { Money } from "@/components/money";
 import { MonthlyBars, RankedBars } from "@/components/charts";
 import { DataWarnings } from "@/components/data-warnings";
-import { EmptyState } from "@/components/empty-state";
+import { getSetupProgress } from "@/server/onboarding";
+import { SetupChecklist } from "@/components/onboarding/setup-checklist";
+import { HowItWorks } from "@/components/onboarding/how-it-works";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -23,25 +25,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const { preset, range, label } = rangeFromParams(sp, "last-3-months");
   const rq = rangeQuery(preset, range);
 
-  const accountCount = await prisma.bankAccount.count({ where: { userId: user.id, archived: false } });
-  const txnCount = await prisma.transaction.count({ where: { userId: user.id } });
-  if (!accountCount || !txnCount) {
+  const onboarding = await getSetupProgress(user.id);
+  const walkthrough = !onboarding.guideSeen && <HowItWorks autoOpen seen={false} />;
+  if (onboarding.progress.nextPrerequisite) {
+    // No accounts or nothing imported yet: the setup checklist is the dashboard.
     return (
       <>
         <PageHeader title="Dashboard" description="Where your money goes, across all your accounts." />
-        <EmptyState
-          icon={accountCount ? <Upload /> : <Landmark />}
-          title={accountCount ? "Import your first statement" : "Add your bank accounts"}
-          description={
-            accountCount
-              ? "Upload a PDF, CSV or XLSX statement. You'll preview every row before anything is saved."
-              : "Create an entry for each of your bank accounts, then import their statements. Nothing leaves this machine."
-          }
-          action={accountCount ? { href: "/import", label: "Import statement" } : { href: "/accounts", label: "Add account" }}
-        />
+        {walkthrough}
+        <SetupChecklist progress={onboarding.progress} mode="full" />
       </>
     );
   }
+  const showChecklist = !onboarding.progress.allRequiredDone && !onboarding.checklistHidden;
 
   const prev = previousPeriod(range);
   const trendFrom = range.from === "1900-01-01" ? range.from : addMonths(startOfMonth(range.to), -5) < range.from ? addMonths(startOfMonth(range.to), -5) : range.from;
@@ -80,6 +76,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         description={`${label} · ${formatDate(range.from === "1900-01-01" ? (txns[0]?.date ?? range.from) : range.from)} – ${formatDate(range.to)}`}
         actions={<RangeFilter preset={preset} from={range.from} to={range.to} />}
       />
+      {walkthrough}
+      {showChecklist && <SetupChecklist progress={onboarding.progress} mode="banner" />}
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Key figures">
         <StatCard

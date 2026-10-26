@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, Lightbulb, TrendingUp } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Lightbulb } from "lucide-react";
 import { requireUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { getAnalyticsOptions, getAnalyticsTxns } from "@/server/queries";
@@ -13,7 +13,8 @@ import { RangeFilter } from "@/components/range-filter";
 import { StatCard } from "@/components/stat-card";
 import { Money } from "@/components/money";
 import { MonthlyBars, RankedBars, SplitBar } from "@/components/charts";
-import { EmptyState } from "@/components/empty-state";
+import { SetupEmptyState } from "@/components/onboarding/setup-empty-state";
+import { getSetupPrerequisite } from "@/server/onboarding";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -45,7 +46,7 @@ export default async function AnalysisPage({ searchParams }: { searchParams: Pro
     return (
       <>
         <PageHeader title="Where is my money going?" />
-        <EmptyState icon={<TrendingUp />} title="No data yet" description="Import statements to see your spending analysis." action={{ href: "/import", label: "Import statement" }} />
+        <SetupEmptyState prerequisite={(await getSetupPrerequisite(user.id)) ?? "statements"} what="Spending analysis is built from your imported transactions." />
       </>
     );
   }

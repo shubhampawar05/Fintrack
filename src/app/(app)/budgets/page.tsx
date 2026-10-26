@@ -53,7 +53,12 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           {!rows.length ? (
-            <EmptyState icon={<PiggyBank />} title="No budgets yet" description="Set monthly budgets for categories like Rent, Groceries, Restaurants, Transport, Shopping, Family support, Travel and Entertainment." />
+            <EmptyState
+              icon={<PiggyBank />}
+              title="No budgets yet"
+              description="Set monthly budgets for categories like Rent, Groceries, Restaurants, Transport, Shopping, Family support, Travel and Entertainment. You can set them now — they're compared with your spending once statements are imported."
+              action={<BudgetDialog categories={categories.map((c) => ({ id: c.id, name: c.name }))} />}
+            />
           ) : (
             <Card className="py-0">
               <Table>

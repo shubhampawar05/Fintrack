@@ -150,6 +150,10 @@ model UserSettings {
   ccPaymentTreatment   CcPaymentTreatment @default(AUTO)
   /// Explicit opt-in before any transaction text is sent to an external AI provider.
   aiCategorization     Boolean            @default(false)
+  /// First-run onboarding UI state; null means "not yet". Never affects financial data.
+  onboardingGuideSeenAt       DateTime?
+  onboardingChecklistHiddenAt DateTime?
+  onboardingReviewDoneAt      DateTime?
   updatedAt            DateTime           @updatedAt
 }
 

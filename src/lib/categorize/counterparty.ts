@@ -78,6 +78,9 @@ function vpaKey(vpa: string): string {
   return phone ? `phone:${phone[1]}` : vpa.toLowerCase().replace(/-\d+@/, "@");
 }
 
+/** Apps that carry UPI payments for others; their name in a UPI ID says nothing about the payee. */
+export const PAYMENT_APPS = new Set(["Paytm", "PhonePe"]);
+
 export function knownMerchant(text: string): string | undefined {
   return KNOWN_MERCHANTS.find(([re]) => re.test(text))?.[1];
 }

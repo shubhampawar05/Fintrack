@@ -5,11 +5,11 @@ import { z } from "zod";
 import { requireUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { audit } from "@/server/audit";
-import { ensureUserDefaults } from "@/server/bootstrap";
-import { recategorize, runLinking } from "@/server/pipeline";
+import { recategorize } from "@/server/pipeline";
 import { ruleSchema, type RuleInput } from "@/lib/validation/schemas";
 import { parseAmountToPaise } from "@/lib/money";
 import { SESSION_COOKIE } from "@/server/session";
+import { deleteAllUserData } from "@/server/delete-data";
 import { run } from "./util";
 
 const settingsSchema = z.object({
@@ -133,26 +133,12 @@ export async function deleteCategory(id: string) {
   }, "Category deleted; its transactions were re-evaluated");
 }
 
-/** Permanently delete every transaction, import, budget, goal, rule and setting. */
+/** Permanently delete all of the user's data (see deleteAllUserData). */
 export async function deleteAllData(confirmation: string) {
   return run(async () => {
     const user = await requireUser();
     if (confirmation !== "DELETE") throw new Error('Type DELETE to confirm.');
-    await prisma.$transaction(async (tx) => {
-      await tx.transaction.updateMany({ where: { userId: user.id }, data: { refundOfId: null } });
-      await tx.transaction.deleteMany({ where: { userId: user.id } });
-      await tx.statementImport.deleteMany({ where: { userId: user.id } });
-      await tx.bankAccount.deleteMany({ where: { userId: user.id } });
-      await tx.budget.deleteMany({ where: { userId: user.id } });
-      await tx.financialGoal.deleteMany({ where: { userId: user.id } });
-      await tx.recurringTransaction.deleteMany({ where: { userId: user.id } });
-      await tx.categorizationRule.deleteMany({ where: { userId: user.id } });
-      await tx.category.deleteMany({ where: { userId: user.id } });
-      await tx.auditLog.deleteMany({ where: { userId: user.id } });
-      await tx.userSettings.deleteMany({ where: { userId: user.id } });
-    });
-    await ensureUserDefaults(user.id);
-    await runLinking(user.id);
+    await deleteAllUserData(user.id);
     (await cookies()).delete(SESSION_COOKIE);
     revalidatePath("/", "layout");
   }, "All data deleted");

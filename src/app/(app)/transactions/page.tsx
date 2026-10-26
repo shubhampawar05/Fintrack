@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeftRight, Download, ListFilter } from "lucide-react";
+import { Download, ListFilter } from "lucide-react";
 import { requireUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { buildTransactionFilter } from "@/server/transactions-query";
@@ -9,6 +9,8 @@ import { readParam, type SearchParams } from "@/lib/range-params";
 import { PageHeader } from "@/components/page-header";
 import { RangeFilter } from "@/components/range-filter";
 import { EmptyState } from "@/components/empty-state";
+import { SetupEmptyState } from "@/components/onboarding/setup-empty-state";
+import { getSetupPrerequisite } from "@/server/onboarding";
 import { Button } from "@/components/ui/button";
 import { TransactionFilters } from "./filters";
 import { TransactionsTable, type TxnRow } from "./transactions-table";
@@ -98,6 +100,8 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const exportQuery = new URLSearchParams(Object.entries(sp).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : [])));
   exportQuery.delete("page");
 
+  // Distinguish "nothing imported yet" from "filters match nothing".
+  const prerequisite = total === 0 ? await getSetupPrerequisite(user.id) : null;
   return (
     <>
       <PageHeader
@@ -134,12 +138,11 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         sort={sortKey}
       />
       {total === 0 ? (
-        <EmptyState
-          icon={accounts.length ? <ListFilter /> : <ArrowLeftRight />}
-          title={accounts.length ? "No transactions match these filters" : "No transactions yet"}
-          description={accounts.length ? "Try widening the date range or clearing filters." : "Import a statement to get started."}
-          action={accounts.length ? undefined : { href: "/import", label: "Import statement" }}
-        />
+        prerequisite ? (
+          <SetupEmptyState prerequisite={prerequisite} what="Your transactions appear here once a statement is imported." />
+        ) : (
+          <EmptyState icon={<ListFilter />} title="No transactions match these filters" description="Try widening the date range or clearing filters." />
+        )
       ) : (
         <>
           <TransactionsTable rows={data} categories={categories.map((c) => ({ id: c.id, name: c.name, kind: c.kind }))} />

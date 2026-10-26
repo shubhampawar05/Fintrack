@@ -7,7 +7,8 @@ async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  // On a first visit the walkthrough dialog hides the page from the accessibility tree, so wait on the URL.
+  await expect(page).toHaveURL(/\/$/);
 }
 
 test.describe.configure({ mode: "serial" });
@@ -30,12 +31,46 @@ test("rejects a wrong password", async ({ page }) => {
   await expect(page.getByRole("alert").filter({ hasText: "Incorrect password." })).toBeVisible();
 });
 
+// Runs first against the freshly truncated database, so this is a genuine first visit.
+test("first run: walkthrough once, setup checklist, guiding empty states", async ({ page }) => {
+  await login(page);
+  const walkthrough = page.getByRole("dialog");
+  await expect(walkthrough).toBeVisible();
+  await expect(walkthrough.getByText("Step 1 of 4")).toBeVisible();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(walkthrough.getByText("Step 2 of 4")).toBeVisible();
+  await expect(walkthrough.getByText(/Transfers between your own accounts, investments, cash withdrawals and lending/)).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(walkthrough.getByText("Step 1 of 4")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(walkthrough).toBeHidden();
+
+  // Seen is stored on the server: it does not open again.
+  await page.reload();
+  await expect(page.getByText("0 of 4 required steps done.")).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await page.goto("/analysis");
+  await expect(page.getByText("Add a bank account first")).toBeVisible();
+  await expect(page.getByRole("main").getByRole("link", { name: "Add account" })).toHaveAttribute("href", "/accounts");
+  await page.getByRole("main").getByRole("link", { name: "See all setup steps" }).click();
+
+  await expect(page.getByRole("heading", { name: "Guide" })).toBeVisible();
+  for (const step of ["Add your bank accounts", "Import a statement for every account", "Tell Fintrack who you are", "Review flagged transactions", "Upload your Paytm history", "Set a budget or goal"]) {
+    await expect(page.getByRole("listitem").filter({ hasText: step })).toHaveCount(1);
+  }
+  await page.getByRole("button", { name: "How Fintrack works" }).click();
+  await expect(page.getByRole("dialog").getByText("Step 1 of 4")).toBeVisible();
+  await page.keyboard.press("Escape");
+});
+
 test("create an account, import a statement with preview, and see transactions", async ({ page }) => {
   await login(page);
   await expect(page.getByText("Add your bank accounts")).toBeVisible();
 
   await page.goto("/accounts");
-  await page.getByRole("button", { name: "Add account" }).click();
+  // The empty state offers the same form as the header button.
+  await page.getByRole("main").locator(".border-dashed").getByRole("button", { name: "Add account" }).click();
   await page.getByLabel("Display name", { exact: true }).fill("Kotak savings");
   await page.getByLabel("Bank", { exact: true }).fill("Kotak Mahindra Bank");
   await page.getByRole("button", { name: "Save" }).click();
